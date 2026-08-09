@@ -208,7 +208,7 @@
     <div class="split-options">
       <button type="button" class="split-btn active" data-split="50">50 / 50</button>
       <button type="button" class="split-btn" data-split="custom">Custom %</button>
-      <button type="button" class="split-btn" data-split="charge">Charge an amount</button>
+      <button type="button" class="split-btn" data-split="charge" id="chargeSplitBtn">Charge full amount</button>
     </div>
     <div class="custom-split" id="customSplitRow">
       <div>
@@ -221,10 +221,7 @@
       </div>
     </div>
     <div class="custom-split-hint" id="customSplitHint">Percentages should add up to 100.</div>
-    <div class="charge-split" id="chargeSplitRow">
-      <label class="small" id="chargeLabel">Amount to charge the other person</label>
-      <input type="number" id="chargeAmount" placeholder="0.00" step="0.01" min="0" />
-    </div>
+    <div class="custom-split-hint" id="chargeSplitHint">The other person will be charged the full amount above.</div>
     <label class="small">Receipt (optional)</label>
     <div class="receipt-row">
       <button type="button" class="receipt-btn" id="receiptBtn">Attach photo</button>
@@ -337,9 +334,7 @@ const customSplitRow = document.getElementById('customSplitRow');
 const customSplitHint = document.getElementById('customSplitHint');
 const customPctA = document.getElementById('customPctA');
 const customPctB = document.getElementById('customPctB');
-const chargeSplitRow = document.getElementById('chargeSplitRow');
-const chargeLabel = document.getElementById('chargeLabel');
-const chargeAmount = document.getElementById('chargeAmount');
+const chargeSplitHint = document.getElementById('chargeSplitHint');
 const receiptBtn = document.getElementById('receiptBtn');
 const receiptInput = document.getElementById('receiptInput');
 const receiptPreview = document.getElementById('receiptPreview');
@@ -368,13 +363,6 @@ function refreshNames() {
   customLabelB.textContent = state.nameB + ' %';
   if (document.activeElement !== nameAInput) nameAInput.value = state.nameA;
   if (document.activeElement !== nameBInput) nameBInput.value = state.nameB;
-  updateChargeLabel();
-}
-
-function updateChargeLabel() {
-  const payer = paidBySelect.value;
-  const other = payer === 'A' ? state.nameB : state.nameA;
-  chargeLabel.textContent = 'Amount to charge ' + other;
 }
 
 function computeBalance() {
@@ -546,11 +534,9 @@ document.querySelectorAll('.split-btn').forEach(btn => {
     selectedSplit = btn.dataset.split;
     customSplitRow.classList.toggle('show', selectedSplit === 'custom');
     customSplitHint.classList.toggle('show', selectedSplit === 'custom');
-    chargeSplitRow.classList.toggle('show', selectedSplit === 'charge');
+    chargeSplitHint.classList.toggle('show', selectedSplit === 'charge');
   });
 });
-
-paidBySelect.addEventListener('change', updateChargeLabel);
 
 customPctA.addEventListener('input', () => {
   const v = parseFloat(customPctA.value);
@@ -800,12 +786,7 @@ document.getElementById('addBtn').addEventListener('click', () => {
     const otherPct = paidBy === 'A' ? pB : pA;
     entry.owedAmount = otherPct / 100 * amount;
   } else if (selectedSplit === 'charge') {
-    const c = parseFloat(chargeAmount.value);
-    if (isNaN(c) || c < 0) {
-      alert('Enter a valid amount to charge the other person.');
-      return;
-    }
-    entry.owedAmount = c;
+    entry.owedAmount = amount;
   }
 
   if (pendingReceipt) entry.image = pendingReceipt;
@@ -816,7 +797,6 @@ document.getElementById('addBtn').addEventListener('click', () => {
   expenseAmountInput.value = '';
   customPctA.value = '';
   customPctB.value = '';
-  chargeAmount.value = '';
   pendingReceipt = null;
   receiptInput.value = '';
   receiptPreview.classList.remove('show');
