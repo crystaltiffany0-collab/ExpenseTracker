@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Split Tracker</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --border: #e4e2dd;
+    --text: #2c2c2a;
+    --muted: #6b6a66;
+    --accent: #378ADD;
+    --owe: #D85A30;
+    --settled: #1D9E75;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 24px 16px 80px;
+    display: flex;
+    justify-content: center;
+  }
+  .wrap { width: 100%; max-width: 560px; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .status-dot.online { background: var(--settled); }
+  .status-dot.offline { background: var(--owe); }
+
+  .config-warning {
+    background: #fdf3e7; border: 1px solid #f2ddb8; border-radius: 10px;
+    padding: 12px 14px; font-size: 13px; margin-bottom: 20px; color: #6b4f16;
+  }
+
+  .names { display: flex; gap: 8px; margin-bottom: 20px; }
+  .names input {
+    flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    font-size: 14px; background: var(--card);
+  }
+
+  .balance-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; text-align: center; margin-bottom: 20px;
+  }
+  .balance-amount { font-size: 32px; font-weight: 500; margin: 4px 0; }
+  .balance-label { color: var(--muted); font-size: 14px; }
+  .settle-btn {
+    margin-top: 14px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); font-size: 13px; cursor: pointer; color: var(--text);
+  }
+  .settle-btn:hover { background: #f0efec; }
+  .settle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .form-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; margin-bottom: 20px;
+  }
+  .form-card h2 { font-size: 15px; font-weight: 500; margin: 0 0 12px; }
+  .row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .row > * { flex: 1; }
+  input, select {
+    width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
+    font-size: 14px; background: #fafaf8;
+  }
+  label.small { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .split-options { display: flex; gap: 8px; margin-bottom: 10px; }
+  .split-options button {
+    flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: #fafaf8; font-size: 13px; cursor: pointer; color: var(--text);
+  }
+  .split-options button.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .custom-split { display: none; gap: 8px; margin-bottom: 4px; }
+  .custom-split.show { display: flex; }
+  .custom-split-hint { display: none; font-size: 11px; color: var(--muted); margin: 0 0 10px; }
+  .custom-split-hint.show { display: block; }
+  .charge-split { display: none; margin-bottom: 10px; }
+  .charge-split.show { display: block; }
+
+  .receipt-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .receipt-btn {
+    padding: 8px 12px; border-radius: 8px; border: 1px dashed var(--border);
+    background: #fafaf8; font-size: 13px; cursor: pointer; color: var(--muted);
+  }
+  .receipt-preview { display: none; align-items: center; gap: 8px; }
+  .receipt-preview.show { display: flex; }
+  .receipt-preview img {
+    width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);
+  }
+  .receipt-preview button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .receipt-note { font-size: 11px; color: var(--muted); margin: -4px 0 6px; }
+  .receipt-note.scanning { color: var(--accent); }
+  .receipt-candidates { display: none; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+  .receipt-candidates.show { display: flex; }
+  .receipt-candidates span {
+    font-size: 11px; color: var(--muted); align-self: center; margin-right: 2px;
+  }
+  .candidate-chip {
+    padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border);
+    background: #fafaf8; font-size: 12px; cursor: pointer; color: var(--text);
+  }
+  .candidate-chip:hover { background: #f0efec; }
+  .candidate-chip.picked { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .add-btn {
+    width: 100%; padding: 10px; border-radius: 8px; border: none;
+    background: var(--text); color: white; font-size: 14px; cursor: pointer; margin-top: 4px;
+  }
+  .add-btn:hover { opacity: 0.9; }
+  .add-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab-btn {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); font-size: 13px; cursor: pointer; color: var(--muted);
+  }
+  .tab-btn.active { background: var(--text); color: white; border-color: var(--text); }
+
+  .history h2 { font-size: 15px; font-weight: 500; margin: 0 0 10px; }
+  .entry {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .entry.settlement { background: #f0f8f4; border-color: #cfeadd; }
+  .entry-left { flex: 1; display: flex; align-items: center; gap: 10px; }
+  .entry-thumb {
+    width: 34px; height: 34px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border);
+    cursor: pointer; flex-shrink: 0;
+  }
+  .entry-text { min-width: 0; }
+  .entry-name { font-size: 14px; font-weight: 500; }
+  .entry-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .entry-amount { font-size: 14px; font-weight: 500; margin-left: 12px; white-space: nowrap; }
+  .del-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px;
+    margin-left: 10px; padding: 2px 6px;
+  }
+  .del-btn:hover { color: var(--owe); }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+
+  .archive-group { margin-bottom: 18px; }
+  .archive-group-title {
+    font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+
+  .lightbox {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center; z-index: 999; padding: 24px;
+  }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Split Tracker</h1>
+  <p class="sub">Track shared expenses between two people. Synced live &mdash; settle up anytime.</p>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting&hellip;</span>
+  </div>
+
+  <div class="config-warning" id="configWarning" style="display:none">
+    This app needs your Firebase project config before it can sync. Open this file and fill in the
+    <code>firebaseConfig</code> object near the top of the script with the keys from your Firebase console.
+  </div>
+
+  <div class="names">
+    <input type="text" id="nameA" placeholder="Person A" />
+    <input type="text" id="nameB" placeholder="Person B" />
+  </div>
+
+  <div class="balance-card">
+    <div class="balance-label" id="balanceLabel">All settled up</div>
+    <div class="balance-amount" id="balanceAmount">$0.00</div>
+    <button class="settle-btn" id="settleBtn" disabled>Settle up</button>
+  </div>
+
+  <div class="form-card">
+    <h2>Add an expense</h2>
+    <div class="row">
+      <div>
+        <label class="small">What was it for</label>
+        <input type="text" id="expenseName" placeholder="Groceries" />
+      </div>
+      <div>
+        <label class="small">Amount</label>
+        <input type="number" id="expenseAmount" placeholder="0.00" step="0.01" min="0" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label class="small">Paid by</label>
+        <select id="paidBy"></select>
+      </div>
+    </div>
+    <label class="small">Split</label>
+    <div class="split-options">
+      <button type="button" class="split-btn active" data-split="50">50 / 50</button>
+      <button type="button" class="split-btn" data-split="custom">Custom %</button>
+      <button type="button" class="split-btn" data-split="charge">Charge an amount</button>
+    </div>
+    <div class="custom-split" id="customSplitRow">
+      <div>
+        <label class="small" id="customLabelA">Person A %</label>
+        <input type="number" id="customPctA" placeholder="50" min="0" max="100" />
+      </div>
+      <div>
+        <label class="small" id="customLabelB">Person B %</label>
+        <input type="number" id="customPctB" placeholder="50" min="0" max="100" />
+      </div>
+    </div>
+    <div class="custom-split-hint" id="customSplitHint">Percentages should add up to 100.</div>
+    <div class="charge-split" id="chargeSplitRow">
+      <label class="small" id="chargeLabel">Amount to charge the other person</label>
+      <input type="number" id="chargeAmount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <label class="small">Receipt (optional)</label>
+    <div class="receipt-row">
+      <button type="button" class="receipt-btn" id="receiptBtn">Attach photo</button>
+      <input type="file" id="receiptInput" accept="image/*" style="display:none" />
+      <div class="receipt-preview" id="receiptPreview">
+        <img id="receiptThumb" src="" alt="Receipt preview" />
+        <button type="button" id="removeReceipt">Remove</button>
+      </div>
+    </div>
+    <div class="receipt-note" id="receiptNote">Attach a photo and we'll try to read the total off it automatically &mdash; double-check the amount before adding.</div>
+    <div class="receipt-candidates" id="receiptCandidates"><span>Other amounts found:</span></div>
+    <button class="add-btn" id="addBtn">Add expense</button>
+  </div>
+
+  <div class="history">
+    <div class="tabs">
+      <button class="tab-btn active" id="tabActive" data-tab="active">Active</button>
+      <button class="tab-btn" id="tabArchive" data-tab="archive">Archive</button>
+    </div>
+    <div id="entries"></div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <img id="lightboxImg" src="" alt="Receipt full size" />
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, doc, onSnapshot, setDoc
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+// ---- FILL THIS IN with your Firebase project's config (Project settings > General > Your apps) ----
+const firebaseConfig = {
+  apiKey: "AIzaSyB-tx-uRaKdesL-3vZvdRgz5HnujcGTF4A",
+  authDomain: "expensetracker-ba017.firebaseapp.com",
+  projectId: "expensetracker-ba017",
+  storageBucket: "expensetracker-ba017.firebasestorage.app",
+  messagingSenderId: "583724975491",
+  appId: "1:583724975491:web:4c8c819d9ac343a3ff22b6"
+};
+// Both people load this same page, pointed at the same Firebase project, and share this one document.
+const DOC_PATH = ["splitTracker", "shared"];
+// -------------------------------------------------------------------------------------------------
+
+const isConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const configWarning = document.getElementById('configWarning');
+const addBtn = document.getElementById('addBtn');
+
+let db = null;
+let docRef = null;
+let state = { nameA: 'Crystal', nameB: 'Tiffany', entries: [] };
+let suppressNextWrite = false;
+
+if (!isConfigured) {
+  configWarning.style.display = 'block';
+  statusDot.className = 'status-dot offline';
+  statusText.textContent = 'Not connected — add your Firebase config';
+  addBtn.disabled = true;
+} else {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    docRef = doc(db, ...DOC_PATH);
+    statusText.textContent = 'Connecting…';
+
+    onSnapshot(docRef, snap => {
+      statusDot.className = 'status-dot online';
+      statusText.textContent = 'Synced live';
+      if (snap.exists()) {
+        suppressNextWrite = true;
+        state = snap.data();
+        if (!state.entries) state.entries = [];
+        renderAll();
+      } else {
+        setDoc(docRef, state);
+      }
+    }, err => {
+      statusDot.className = 'status-dot offline';
+      statusText.textContent = 'Connection error — check console/rules';
+      console.error(err);
+    });
+  } catch (err) {
+    statusDot.className = 'status-dot offline';
+    statusText.textContent = 'Firebase failed to initialize';
+    console.error(err);
+  }
+}
+
+function saveState() {
+  if (suppressNextWrite) { suppressNextWrite = false; return; }
+  if (!docRef) return;
+  setDoc(docRef, state).catch(err => {
+    statusText.textContent = 'Failed to save — check connection';
+    console.error(err);
+  });
+}
+
+const nameAInput = document.getElementById('nameA');
+const nameBInput = document.getElementById('nameB');
+const paidBySelect = document.getElementById('paidBy');
+const customLabelA = document.getElementById('customLabelA');
+const customLabelB = document.getElementById('customLabelB');
+const customSplitRow = document.getElementById('customSplitRow');
+const customSplitHint = document.getElementById('customSplitHint');
+const customPctA = document.getElementById('customPctA');
+const customPctB = document.getElementById('customPctB');
+const chargeSplitRow = document.getElementById('chargeSplitRow');
+const chargeLabel = document.getElementById('chargeLabel');
+const chargeAmount = document.getElementById('chargeAmount');
+const receiptBtn = document.getElementById('receiptBtn');
+const receiptInput = document.getElementById('receiptInput');
+const receiptPreview = document.getElementById('receiptPreview');
+const receiptThumb = document.getElementById('receiptThumb');
+const receiptNote = document.getElementById('receiptNote');
+const receiptCandidates = document.getElementById('receiptCandidates');
+const expenseNameInput = document.getElementById('expenseName');
+const expenseAmountInput = document.getElementById('expenseAmount');
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+
+let selectedSplit = '50';
+let pendingReceipt = null;
+let activeTab = 'active';
+let nameDebounce = null;
+
+function fmt(n) {
+  return '$' + Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function refreshNames() {
+  paidBySelect.innerHTML =
+    '<option value="A">' + state.nameA + '</option>' +
+    '<option value="B">' + state.nameB + '</option>';
+  customLabelA.textContent = state.nameA + ' %';
+  customLabelB.textContent = state.nameB + ' %';
+  if (document.activeElement !== nameAInput) nameAInput.value = state.nameA;
+  if (document.activeElement !== nameBInput) nameBInput.value = state.nameB;
+  updateChargeLabel();
+}
+
+function updateChargeLabel() {
+  const payer = paidBySelect.value;
+  const other = payer === 'A' ? state.nameB : state.nameA;
+  chargeLabel.textContent = 'Amount to charge ' + other;
+}
+
+function computeBalance() {
+  let balance = 0;
+  (state.entries || []).forEach(e => {
+    if (e.type === 'settlement') {
+      balance = 0;
+    } else {
+      if (e.paidBy === 'A') balance += e.owedAmount;
+      else balance -= e.owedAmount;
+    }
+  });
+  return balance;
+}
+
+function renderBalance() {
+  const balance = computeBalance();
+  const label = document.getElementById('balanceLabel');
+  const amount = document.getElementById('balanceAmount');
+  const settleBtn = document.getElementById('settleBtn');
+  if (Math.abs(balance) < 0.005) {
+    label.textContent = 'All settled up';
+    amount.textContent = '$0.00';
+    amount.style.color = 'var(--settled)';
+    settleBtn.disabled = true;
+  } else if (balance > 0) {
+    label.textContent = state.nameB + ' owes ' + state.nameA;
+    amount.textContent = fmt(balance);
+    amount.style.color = 'var(--owe)';
+    settleBtn.disabled = false;
+  } else {
+    label.textContent = state.nameA + ' owes ' + state.nameB;
+    amount.textContent = fmt(balance);
+    amount.style.color = 'var(--owe)';
+    settleBtn.disabled = false;
+  }
+}
+
+function splitDescFor(e) {
+  if (e.splitMode === 'charge') {
+    const other = e.paidBy === 'A' ? state.nameB : state.nameA;
+    return other + ' charged ' + fmt(e.owedAmount);
+  }
+  if (e.splitMode === 'custom') {
+    return 'Split ' + state.nameA + ' ' + e.pctA + '% / ' + state.nameB + ' ' + e.pctB + '%';
+  }
+  return 'Split 50/50';
+}
+
+function entryHtml(e, idx, allowDelete) {
+  if (e.type === 'settlement') {
+    return '<div class="entry settlement"><div class="entry-left"><div class="entry-text">' +
+      '<div class="entry-name">Settled up</div>' +
+      '<div class="entry-meta">' + e.date + '</div></div></div>' +
+      (allowDelete ? '<button class="del-btn" data-idx="' + idx + '">&times;</button>' : '') +
+      '</div>';
+  }
+  const payer = e.paidBy === 'A' ? state.nameA : state.nameB;
+  const thumb = e.image ? '<img class="entry-thumb" src="' + e.image + '" data-img="' + idx + '" alt="Receipt" />' : '';
+  return '<div class="entry"><div class="entry-left">' + thumb +
+    '<div class="entry-text"><div class="entry-name">' + e.name + '</div>' +
+    '<div class="entry-meta">' + payer + ' paid &middot; ' + splitDescFor(e) + ' &middot; ' + e.date + '</div></div></div>' +
+    '<div class="entry-amount">' + fmt(e.amount) + '</div>' +
+    (allowDelete ? '<button class="del-btn" data-idx="' + idx + '">&times;</button>' : '') +
+    '</div>';
+}
+
+function wireEntryButtons(container) {
+  container.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteEntry(parseInt(btn.dataset.idx, 10)));
+  });
+  container.querySelectorAll('.entry-thumb').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.src));
+  });
+}
+
+function renderEntries() {
+  const container = document.getElementById('entries');
+  const entries = state.entries || [];
+
+  const lastSettleIdx = (() => {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].type === 'settlement') return i;
+    }
+    return -1;
+  })();
+
+  if (activeTab === 'active') {
+    const activeEntries = entries
+      .map((e, idx) => ({ e, idx }))
+      .filter(x => x.idx > lastSettleIdx);
+
+    if (activeEntries.length === 0) {
+      container.innerHTML = '<div class="empty">No active expenses since last settle-up</div>';
+      return;
+    }
+    container.innerHTML = activeEntries.slice().reverse()
+      .map(x => entryHtml(x.e, x.idx, true)).join('');
+    wireEntryButtons(container);
+    return;
+  }
+
+  const archived = entries
+    .map((e, idx) => ({ e, idx }))
+    .filter(x => x.idx <= lastSettleIdx);
+
+  if (archived.length === 0) {
+    container.innerHTML = '<div class="empty">Nothing archived yet &mdash; settle up to move current entries here</div>';
+    return;
+  }
+
+  const groups = [];
+  let current = [];
+  archived.forEach(x => {
+    current.push(x);
+    if (x.e.type === 'settlement') {
+      groups.push(current);
+      current = [];
+    }
+  });
+  if (current.length) groups.push(current);
+
+  container.innerHTML = groups.slice().reverse().map(group => {
+    const settleEntry = group[group.length - 1];
+    const label = settleEntry.e.type === 'settlement'
+      ? 'Settlement period ending ' + settleEntry.e.date
+      : 'Unsettled period';
+    const rows = group.slice().reverse().map(x => entryHtml(x.e, x.idx, true)).join('');
+    return '<div class="archive-group"><div class="archive-group-title">' + label + '</div>' + rows + '</div>';
+  }).join('');
+  wireEntryButtons(container);
+}
+
+function deleteEntry(idx) {
+  state.entries.splice(idx, 1);
+  saveState();
+  renderAll();
+}
+
+function openLightbox(src) {
+  lightboxImg.src = src;
+  lightbox.classList.add('show');
+}
+lightbox.addEventListener('click', () => lightbox.classList.remove('show'));
+
+function renderAll() {
+  refreshNames();
+  renderBalance();
+  renderEntries();
+}
+
+nameAInput.addEventListener('input', () => {
+  state.nameA = nameAInput.value || 'Person A';
+  clearTimeout(nameDebounce);
+  nameDebounce = setTimeout(() => { saveState(); renderAll(); }, 400);
+  updateChargeLabel();
+});
+nameBInput.addEventListener('input', () => {
+  state.nameB = nameBInput.value || 'Person B';
+  clearTimeout(nameDebounce);
+  nameDebounce = setTimeout(() => { saveState(); renderAll(); }, 400);
+  updateChargeLabel();
+});
+
+document.querySelectorAll('.split-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.split-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedSplit = btn.dataset.split;
+    customSplitRow.classList.toggle('show', selectedSplit === 'custom');
+    customSplitHint.classList.toggle('show', selectedSplit === 'custom');
+    chargeSplitRow.classList.toggle('show', selectedSplit === 'charge');
+  });
+});
+
+paidBySelect.addEventListener('change', updateChargeLabel);
+
+customPctA.addEventListener('input', () => {
+  const v = parseFloat(customPctA.value);
+  customPctB.value = isNaN(v) ? '' : Math.max(0, Math.min(100, 100 - v));
+});
+customPctB.addEventListener('input', () => {
+  const v = parseFloat(customPctB.value);
+  customPctA.value = isNaN(v) ? '' : Math.max(0, Math.min(100, 100 - v));
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTab = btn.dataset.tab;
+    renderEntries();
+  });
+});
+
+// Matches amounts like 45.00, 1,234.56, $3,846.86, -$561.89 — always
+// requires a decimal point with two digits so we don't pick up account
+// numbers, IDs, or dates by accident.
+const MONEY_RE_SRC = '-?\\$?\\s?(\\d{1,3}(?:,\\d{3})*\\.\\d{2})\\b';
+
+function parseMoney(str) {
+  return parseFloat(str.replace(/,/g, ''));
+}
+
+function guessAmountFromText(text) {
+  // Priority order: most specific "this is the real total" labels first.
+  // Each pattern is tried in order; if it has any matches, we take the
+  // LAST one (bottommost on the receipt), since totals are usually
+  // printed after line items, subtotal, and tax.
+  const labelPatterns = [
+    'grand\\s*total',
+    'total\\s*due',
+    'amount\\s*due',
+    'balance\\s*due',
+    '(?<!sub[\\s-]?)\\btotal\\b'
+  ];
+
+  for (const label of labelPatterns) {
+    const pattern = new RegExp(label + '[^\\d\\n]{0,15}' + MONEY_RE_SRC, 'gi');
+    const matches = [...text.matchAll(pattern)];
+    if (matches.length) {
+      const last = matches[matches.length - 1];
+      return parseMoney(last[1]);
+    }
+  }
+
+  // No readable "total" label at all — this happens when a finger,
+  // fold, or crop covers the total line itself. If we can find a
+  // subtotal and a tax line, add them together as a better guess
+  // than just grabbing the largest number (which would usually be
+  // the subtotal, undercounting by the tax amount).
+  const subtotalMatch = [...text.matchAll(new RegExp('sub[\\s-]?total[^\\d\\n]{0,15}' + MONEY_RE_SRC, 'gi'))];
+  const taxMatch = [...text.matchAll(new RegExp('tax[^\\d\\n]{0,15}' + MONEY_RE_SRC, 'gi'))];
+  if (subtotalMatch.length && taxMatch.length) {
+    const subtotal = parseMoney(subtotalMatch[subtotalMatch.length - 1][1]);
+    const tax = parseMoney(taxMatch[taxMatch.length - 1][1]);
+    return Math.round((subtotal + tax) * 100) / 100;
+  }
+
+  // Still nothing — fall back to the largest amount found on the
+  // receipt. Least reliable guess; a labeled total or subtotal+tax
+  // is always preferred over this.
+  const allAmounts = allAmountsFromText(text);
+  if (allAmounts.length) return Math.max(...allAmounts);
+  return null;
+}
+
+function guessMerchantFromText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines.slice(0, 5)) {
+    if (/^[A-Za-z][A-Za-z0-9 &'.\-]{2,30}$/.test(line) && !/\d{2,}/.test(line)) return line;
+  }
+  return null;
+}
+
+function resizeImage(dataUrl, maxDim) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDim) { height *= maxDim / width; width = maxDim; }
+      else if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function allAmountsFromText(text) {
+  const seen = new Set();
+  const amounts = [];
+  for (const m of text.matchAll(new RegExp(MONEY_RE_SRC, 'g'))) {
+    const v = parseMoney(m[1]);
+    if (!seen.has(v)) { seen.add(v); amounts.push(v); }
+  }
+  return amounts;
+}
+
+function renderCandidateChips(amounts, picked) {
+  receiptCandidates.querySelectorAll('.candidate-chip').forEach(c => c.remove());
+  if (amounts.length <= 1) {
+    receiptCandidates.classList.remove('show');
+    return;
+  }
+  receiptCandidates.classList.add('show');
+  amounts.forEach(v => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'candidate-chip' + (v === picked ? ' picked' : '');
+    chip.textContent = fmt(v);
+    chip.addEventListener('click', () => {
+      expenseAmountInput.value = v.toFixed(2);
+      receiptCandidates.querySelectorAll('.candidate-chip').forEach(c => c.classList.remove('picked'));
+      chip.classList.add('picked');
+    });
+    receiptCandidates.appendChild(chip);
+  });
+}
+
+async function scanReceipt(dataUrl) {
+  if (typeof Tesseract === 'undefined') {
+    receiptNote.textContent = "Couldn't load the scanner (no connection) — enter the amount manually.";
+    return;
+  }
+  receiptNote.textContent = 'Scanning receipt…';
+  receiptNote.classList.add('scanning');
+  receiptCandidates.classList.remove('show');
+  try {
+    const result = await Tesseract.recognize(dataUrl, 'eng');
+    const text = result.data.text || '';
+    const amount = guessAmountFromText(text);
+    const merchant = guessMerchantFromText(text);
+    if (amount && !expenseAmountInput.value) expenseAmountInput.value = amount.toFixed(2);
+    if (merchant && !expenseNameInput.value) expenseNameInput.value = merchant;
+
+    // Cap the chip list — a long itemized receipt can have 15+ distinct
+    // amounts, which turns the picker into noise. The real total (or
+    // subtotal/tax) is almost always among the largest few values.
+    let allAmounts = allAmountsFromText(text).sort((a, b) => b - a).slice(0, 8);
+    // If our best guess was computed (e.g. subtotal + tax) rather than
+    // lifted directly from the text, it may not be in that list — make
+    // sure it's shown and marked as picked either way.
+    if (amount && !allAmounts.includes(amount)) {
+      allAmounts = [amount, ...allAmounts].sort((a, b) => b - a);
+    }
+    renderCandidateChips(allAmounts, amount);
+
+    receiptNote.textContent = amount
+      ? 'Read an amount of ' + fmt(amount) + ' off the receipt — double-check it above, or tap another amount below if it found the wrong one.'
+      : "Couldn't confidently read an amount — enter it manually, or tap an amount below if one looks right.";
+  } catch (err) {
+    receiptNote.textContent = "Scan failed — enter the amount manually.";
+  }
+  receiptNote.classList.remove('scanning');
+}
+
+function isHeic(file) {
+  const name = (file.name || '').toLowerCase();
+  return file.type === 'image/heic' || file.type === 'image/heif' ||
+    name.endsWith('.heic') || name.endsWith('.heif');
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+receiptBtn.addEventListener('click', () => receiptInput.click());
+receiptInput.addEventListener('change', async () => {
+  const file = receiptInput.files[0];
+  if (!file) return;
+
+  receiptNote.textContent = 'Loading photo…';
+  receiptNote.classList.add('scanning');
+
+  try {
+    let workingFile = file;
+    if (isHeic(file)) {
+      if (typeof heic2any === 'undefined') {
+        receiptNote.textContent = "Couldn't load the HEIC converter (no connection) — try a JPG/PNG instead.";
+        receiptNote.classList.remove('scanning');
+        return;
+      }
+      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.8 });
+      workingFile = Array.isArray(converted) ? converted[0] : converted;
+    }
+
+    const rawDataUrl = await readFileAsDataUrl(workingFile);
+    const resized = await resizeImage(rawDataUrl, 500);
+    pendingReceipt = resized;
+    receiptThumb.src = pendingReceipt;
+    receiptPreview.classList.add('show');
+    receiptBtn.style.display = 'none';
+    scanReceipt(pendingReceipt);
+  } catch (err) {
+    console.error(err);
+    receiptNote.textContent = "Couldn't read that photo — try a JPG/PNG instead.";
+    receiptNote.classList.remove('scanning');
+  }
+});
+document.getElementById('removeReceipt').addEventListener('click', () => {
+  pendingReceipt = null;
+  receiptInput.value = '';
+  receiptPreview.classList.remove('show');
+  receiptBtn.style.display = '';
+  receiptNote.textContent = "Attach a photo and we'll try to read the total off it automatically — double-check the amount before adding.";
+  receiptCandidates.classList.remove('show');
+});
+
+document.getElementById('addBtn').addEventListener('click', () => {
+  const name = expenseNameInput.value.trim();
+  const amount = parseFloat(expenseAmountInput.value);
+  const paidBy = paidBySelect.value;
+  if (!name || !amount || amount <= 0) {
+    alert('Enter a description and a valid amount.');
+    return;
+  }
+
+  const entry = {
+    type: 'expense',
+    name, amount, paidBy, splitMode: selectedSplit,
+    date: new Date().toLocaleDateString()
+  };
+
+  if (selectedSplit === '50') {
+    entry.owedAmount = amount / 2;
+  } else if (selectedSplit === 'custom') {
+    const pA = parseFloat(customPctA.value);
+    const pB = parseFloat(customPctB.value);
+    if (isNaN(pA) || isNaN(pB) || pA < 0 || pB < 0 || Math.round(pA + pB) !== 100) {
+      alert('Enter percentages for ' + state.nameA + ' and ' + state.nameB + ' that add up to 100.');
+      return;
+    }
+    entry.pctA = pA;
+    entry.pctB = pB;
+    const otherPct = paidBy === 'A' ? pB : pA;
+    entry.owedAmount = otherPct / 100 * amount;
+  } else if (selectedSplit === 'charge') {
+    const c = parseFloat(chargeAmount.value);
+    if (isNaN(c) || c < 0) {
+      alert('Enter a valid amount to charge the other person.');
+      return;
+    }
+    entry.owedAmount = c;
+  }
+
+  if (pendingReceipt) entry.image = pendingReceipt;
+  if (!state.entries) state.entries = [];
+  state.entries.push(entry);
+  saveState();
+  expenseNameInput.value = '';
+  expenseAmountInput.value = '';
+  customPctA.value = '';
+  customPctB.value = '';
+  chargeAmount.value = '';
+  pendingReceipt = null;
+  receiptInput.value = '';
+  receiptPreview.classList.remove('show');
+  receiptBtn.style.display = '';
+  receiptCandidates.classList.remove('show');
+  renderAll();
+});
+
+document.getElementById('settleBtn').addEventListener('click', () => {
+  if (!state.entries) state.entries = [];
+  state.entries.push({ type: 'settlement', date: new Date().toLocaleDateString() });
+  saveState();
+  activeTab = 'active';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tabActive').classList.add('active');
+  renderAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>
